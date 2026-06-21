@@ -1,9 +1,10 @@
-# ⚔️ Torn Conflict Manager (Tampermonkey Userscript)
+# ⚔️ Torn Conflict Manager (Torn ATC)
 
 A real-time intelligence overlay for Torn that tracks faction overseas activity and airspace movement during conflicts.
 
 Built as a Tampermonkey userscript that integrates directly into the Torn web interface.
 
+## This is a work in progress. If you find a bug let me know by sending me a message in torn (-Antheia-)
 ---
 
 ## 🚀 Features
