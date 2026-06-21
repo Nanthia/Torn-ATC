@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Conflict Manager
 // @namespace    https://github.com/Nanthia/Torn-ATC
-// @version      1.5.8
+// @version      1.5.9
 // @description  Airspace tracking, transit splits, grid UI, floating hide button, absolute timing, and pre-compiled regex engine.
 // @author       Antheia
 // @match        https://www.torn.com/*
