@@ -47,6 +47,7 @@
     let currentTab = 'map'; // 'map' or 'air'
     let appState = 'loading'; // 'setup', 'loading', 'app', 'error'
     let lastErrorMsg = "";
+    let secondsLeft = 60;
     let latestData = {
         theatreMap: {},
         airspace: {
@@ -118,11 +119,10 @@
     // --- UI Container Initialization ---
     function initUI() {
         if (document.getElementById('tm-conflict-container')) return;
-
+        
         const savedPos = JSON.parse(GM_getValue("torn_ui_pos", "{}"));
         let isVisible = GM_getValue("tm_visible", true);
 
-        // Main Widget Container
         const container = document.createElement('div');
         container.id = 'tm-conflict-container';
         container.style.position = 'fixed';
@@ -136,7 +136,7 @@
         container.style.display = isVisible ? 'flex' : 'none';
         container.style.flexDirection = 'column';
         container.style.resize = 'both';
-        container.style.overflow = 'hidden';
+        container.style.overflow = 'hidden'; 
         container.style.width = savedPos.width || '260px';
         container.style.height = savedPos.height || 'auto';
         if (savedPos.top && savedPos.left) {
@@ -177,7 +177,6 @@
         container.appendChild(content);
         document.body.appendChild(container);
 
-        // Floating Toggle Button (FAB)
         const fab = document.createElement('div');
         fab.id = 'tm-conflict-fab';
         fab.style.position = 'fixed';
@@ -199,7 +198,6 @@
         fab.innerHTML = '⚔️ <span style="color:#4CAF50;">Radar</span>';
         document.body.appendChild(fab);
 
-        // Visibility Toggle Function
         function toggleVisibility() {
             isVisible = !isVisible;
             GM_setValue("tm_visible", isVisible);
@@ -210,10 +208,9 @@
         document.getElementById('tm-hide-widget').addEventListener('click', toggleVisibility);
         fab.addEventListener('click', toggleVisibility);
 
-        // Drag Logic
         let isDragging = false, offsetX, offsetY;
         header.addEventListener('mousedown', (e) => {
-            if (e.target.id === 'tm-reset-config' || e.target.id === 'tm-hide-widget') return;
+            if (e.target.id === 'tm-reset-config' || e.target.id === 'tm-hide-widget') return; 
             isDragging = true;
             const rect = container.getBoundingClientRect();
             offsetX = e.clientX - rect.left;
@@ -236,7 +233,6 @@
         });
         resizeObserver.observe(container);
 
-        // Reset Settings Event
         document.getElementById('tm-reset-config').addEventListener('click', () => {
             GM_setValue("torn_api_key", "");
             GM_setValue("torn_enemy_id", "");
@@ -309,6 +305,14 @@
             const activeTabStyle = 'background:#4CAF50; color:#fff; font-weight:bold; cursor:default;';
             const inactiveTabStyle = 'background:#222; color:#888; cursor:pointer;';
 
+            // NEW TIMER HEADER INFO
+            html += `
+                <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:10px; color:#777; background:rgba(0,0,0,0.2); padding:4px 6px; border-radius:4px; border:1px solid #222;">
+                    <span>Refreshed: ${latestData.timestamp}</span>
+                    <span id="tm-countdown-display" style="color:#888;">Next in: ${secondsLeft}s</span>
+                </div>
+            `;
+
             // Tabs Header
             html += `
                 <div style="display:flex; margin-bottom:10px; border-radius:4px; overflow:hidden; border:1px solid #444; font-size:11px;">
@@ -327,10 +331,10 @@
 
                 countries.forEach(c => {
                     const data = latestData.theatreMap[c];
-                    let statusColor = "#aaa";
-                    if (data.A > 0 && data.E > 0) statusColor = "#ff4444";
-                    else if (data.E > 0) statusColor = "#ffaa00";
-                    else if (data.A > 0) statusColor = "#44ff44";
+                    let statusColor = "#aaa"; 
+                    if (data.A > 0 && data.E > 0) statusColor = "#ff4444"; 
+                    else if (data.E > 0) statusColor = "#ffaa00"; 
+                    else if (data.A > 0) statusColor = "#44ff44"; 
 
                     html += `
                     <div style="margin-bottom:8px; border-bottom: 1px solid #222; padding-bottom: 6px;">
@@ -343,7 +347,7 @@
                         </div>
                     </div>`;
                 });
-            }
+            } 
             else if (currentTab === 'air') {
                 html += `
                     <div style="margin-bottom: 12px; background: rgba(68, 255, 68, 0.05); padding: 8px; border: 1px solid #1a331a; border-radius: 4px;">
@@ -351,7 +355,7 @@
                         <div style="font-size:12px; margin-bottom:2px;">➔ Inbound to Torn: <span style="color:#fff; font-weight:bold;">${latestData.airspace.ALLY.returning}</span></div>
                         <div style="font-size:12px; color:#888;">➔ Outbound/Transit: <span style="color:#ccc;">${latestData.airspace.ALLY.outbound}</span></div>
                     </div>
-
+                    
                     <div style="margin-bottom: 4px; background: rgba(255, 68, 68, 0.05); padding: 8px; border: 1px solid #331a1a; border-radius: 4px;">
                         <div style="color:#ff4444; font-weight:bold; font-size:10px; margin-bottom:6px; letter-spacing:1px;">HOSTILE FLIGHTS</div>
                         <div style="font-size:12px; margin-bottom:2px;">➔ Inbound to Torn: <span style="color:#fff; font-weight:bold;">${latestData.airspace.ENEMY.returning}</span></div>
@@ -360,7 +364,6 @@
                 `;
             }
 
-            html += `<div style="text-align:right; font-size:9px; color:#666; margin-top:10px;">Updated: ${latestData.timestamp}</div>`;
             contentDiv.innerHTML = html;
 
             // Tab Event Listeners
@@ -394,8 +397,7 @@
 
             const myMembers = Array.isArray(myFactionData.members) ? myFactionData.members : Object.values(myFactionData.members || {});
             const enemyMembers = Array.isArray(enemyData.members) ? enemyData.members : Object.values(enemyData.members || {});
-
-            // Reset state trackers for new data
+            
             const newTheatreMap = {};
             const newAirspace = {
                 ALLY: { returning: 0, outbound: 0 },
@@ -403,21 +405,19 @@
             };
 
             const mapParticipant = (member, type) => {
-                // 1. Check if flying
                 const airStatus = getAirspaceStatus(member);
                 if (airStatus) {
                     if (airStatus === "RETURNING") newAirspace[type].returning++;
                     else newAirspace[type].outbound++;
                 }
 
-                // 2. Check if landed/hospitalized/transit overseas
                 const loc = getOverseasLocation(member);
                 if (loc) {
                     const country = loc.country;
                     if (!newTheatreMap[country]) {
                         newTheatreMap[country] = { A: 0, E: 0, AT: 0, ET: 0, flag: countryFlags[country.toLowerCase()] || "📍" };
                     }
-
+                    
                     if (loc.isTransit) {
                         if (type === "ALLY") newTheatreMap[country].AT++;
                         if (type === "ENEMY") newTheatreMap[country].ET++;
@@ -431,10 +431,10 @@
             myMembers.forEach(m => mapParticipant(m, "ALLY"));
             enemyMembers.forEach(m => mapParticipant(m, "ENEMY"));
 
-            // Update global state and render
             latestData.theatreMap = newTheatreMap;
             latestData.airspace = newAirspace;
             latestData.timestamp = new Date().toLocaleTimeString();
+            secondsLeft = 60; // Reset countdown counter on clear api sync
             appState = 'app';
             renderUI();
 
@@ -453,11 +453,26 @@
         renderUI();
         if (key && eid) pollData();
 
+        // 1. Core API Poller (60s loop)
         setInterval(() => {
             if (appState === 'app' || appState === 'loading') {
                 pollData();
             }
         }, POLL_INTERVAL_MS);
+
+        // 2. Dynamic UI Countdown Thread (1s loop)
+        setInterval(() => {
+            if (appState === 'app') {
+                secondsLeft--;
+                if (secondsLeft < 0) secondsLeft = 60; 
+                
+                const displayEl = document.getElementById('tm-countdown-display');
+                if (displayEl) {
+                    displayEl.innerText = `Next in: ${secondsLeft}s`;
+                }
+            }
+        }, 1000);
+
     }, 500);
 
 })();
