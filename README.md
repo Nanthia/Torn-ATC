@@ -4,7 +4,7 @@ A real-time intelligence overlay for Torn that tracks faction overseas activity 
 
 Built as a Tampermonkey userscript that integrates directly into the Torn web interface.
 
-## This is a work in progress. If you find a bug let me know by sending me a message in torn (-Antheia-)
+## This is a work in progress. If you find a bug let me know by sending me a message in Torn (-Antheia-)
 ---
 
 ## 🚀 Features
