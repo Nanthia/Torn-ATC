@@ -52,6 +52,16 @@ https://raw.githubusercontent.com/Nanthia/Torn-ATC/main/torn-conflict-manager.us
 
 Tampermonkey will prompt installation automatically.
 
+## How to Find Faction ID
+
+- Go to the faction you are at war with
+- Find the faction link in the Url
+- In the Url look for the numeric number at the end of the link
+- Copy the numbers and enter that into the tool
+
+  **<img width="1261" height="208" alt="image" src="https://github.com/user-attachments/assets/e5eda16c-4eb1-43ca-a881-650a8c18120b" />
+**
+
 ---
 
 ## 🔄 Auto Updates
