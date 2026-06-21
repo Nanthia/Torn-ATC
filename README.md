@@ -7,6 +7,15 @@ Built as a Tampermonkey userscript that integrates directly into the Torn web in
 ## This is a work in progress. If you find a bug let me know by sending me a message in Torn (-Antheia-)
 ---
 
+## How to Find Faction ID
+
+- Open the faction page of the faction you are currently at war with
+- Look at the URL in your browser’s address bar
+- Locate the number at the very end of the URL
+- Copy that number and paste it into the tool
+
+  <img width="1261" height="208" alt="image" src="https://github.com/user-attachments/assets/e5eda16c-4eb1-43ca-a881-650a8c18120b" />
+
 ## 🚀 Features
 
 ### 🌍 Theatre Map Tracking
@@ -52,15 +61,8 @@ https://raw.githubusercontent.com/Nanthia/Torn-ATC/main/torn-conflict-manager.us
 
 Tampermonkey will prompt installation automatically.
 
-## How to Find Faction ID
 
-- Go to the faction you are at war with
-- Find the faction link in the Url
-- In the Url look for the numeric number at the end of the link
-- Copy the numbers and enter that into the tool
 
-  **<img width="1261" height="208" alt="image" src="https://github.com/user-attachments/assets/e5eda16c-4eb1-43ca-a881-650a8c18120b" />
-**
 
 ---
 
