@@ -1,10 +1,14 @@
 // ==UserScript==
 // @name         Torn Conflict Manager (Phase 1.5)
-// @namespace    http://tampermonkey.net/
+// @namespace    https://github.com/Nanthia/Torn-ATC
 // @version      1.5
 // @description  Adds Airspace tracking tab for returning/outbound flights.
-// @author       You
+// @author       Antheia
 // @match        https://www.torn.com/*
+
+// @updateURL    https://raw.githubusercontent.com/Nanthia/Torn-ATC/main/torn-conflict-manager.user.js
+// @downloadURL  https://raw.githubusercontent.com/Nanthia/Torn-ATC/main/torn-conflict-manager.user.js
+
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @connect      api.torn.com
