@@ -1,14 +1,12 @@
 // ==UserScript==
-// @name         Torn Conflict Manager (Phase 1.5)
+// @name         Torn Conflict Manager
 // @namespace    https://github.com/Nanthia/Torn-ATC
-// @version      1.6
-// @description  Adds Airspace tracking tab for returning/outbound flights.
+// @version      1.5.8
+// @description  Airspace tracking, transit splits, grid UI, floating hide button, absolute timing, and pre-compiled regex engine.
 // @author       Antheia
 // @match        https://www.torn.com/*
-
 // @updateURL    https://raw.githubusercontent.com/Nanthia/Torn-ATC/main/torn-conflict-manager.user.js
 // @downloadURL  https://raw.githubusercontent.com/Nanthia/Torn-ATC/main/torn-conflict-manager.user.js
-
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @connect      api.torn.com
@@ -17,7 +15,6 @@
 (function() {
     'use strict';
 
-    const POLL_INTERVAL_MS = 60000;
     const API_BASE = "https://api.torn.com/v2/faction";
 
     const standardCountryNames = {
@@ -43,11 +40,23 @@
         "uae": "🇦🇪", "uk": "🇬🇧", "usa": "🇺🇸"
     };
 
+    // --- Optimization: Pre-compile Regexes to prevent memory leaks during rapid loops ---
+    const compiledCountryRegexes = Object.entries(standardCountryNames).map(([key, val]) => ({
+        regex: new RegExp(`\\b${key}\\b`),
+        val: val
+    }));
+
     // --- State Management ---
-    let currentTab = 'map'; // 'map' or 'air'
-    let appState = 'loading'; // 'setup', 'loading', 'app', 'error'
+    let currentTab = 'map'; 
+    let appState = 'loading'; 
     let lastErrorMsg = "";
-    let secondsLeft = 60;
+    
+    let pollMinutes = GM_getValue("torn_poll_minutes", 1);
+    
+    // Absolute timing variables
+    let targetPollTime = 0;
+    let secondsLeftDisplay = pollMinutes * 60;
+    
     let latestData = {
         theatreMap: {},
         airspace: {
@@ -68,8 +77,8 @@
         if (fullText.match(/\b(to torn|returning)\b/)) return null;
 
         const extractCountry = (str) => {
-            for (const [key, val] of Object.entries(standardCountryNames)) {
-                if (new RegExp("\\b" + key + "\\b").test(str)) return val;
+            for (const item of compiledCountryRegexes) {
+                if (item.regex.test(str)) return item.val;
             }
             return null;
         };
@@ -114,6 +123,12 @@
             throw new Error(errorMsg || "API Error");
         }
         return data;
+    }
+
+    function formatTime(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60);
+        const s = totalSeconds % 60;
+        return `${m}:${s.toString().padStart(2, '0')}`;
     }
 
     // --- UI Container Initialization ---
@@ -163,7 +178,7 @@
             <span>⚔️ Command Center</span>
             <div>
                 <span id="tm-hide-widget" style="cursor:pointer; font-size:11px; color:#aaa; margin-right:8px;" title="Hide Widget">[—]</span>
-                <span id="tm-reset-config" style="cursor:pointer; font-size:11px; color:#888;" title="Reset Settings">[⚙️]</span>
+                <span id="tm-open-settings" style="cursor:pointer; font-size:11px; color:#888;" title="Settings">[⚙️]</span>
             </div>`;
 
         const content = document.createElement('div');
@@ -210,7 +225,7 @@
 
         let isDragging = false, offsetX, offsetY;
         header.addEventListener('mousedown', (e) => {
-            if (e.target.id === 'tm-reset-config' || e.target.id === 'tm-hide-widget') return; 
+            if (e.target.id === 'tm-open-settings' || e.target.id === 'tm-hide-widget') return; 
             isDragging = true;
             const rect = container.getBoundingClientRect();
             offsetX = e.clientX - rect.left;
@@ -233,9 +248,7 @@
         });
         resizeObserver.observe(container);
 
-        document.getElementById('tm-reset-config').addEventListener('click', () => {
-            GM_setValue("torn_api_key", "");
-            GM_setValue("torn_enemy_id", "");
+        document.getElementById('tm-open-settings').addEventListener('click', () => {
             appState = 'setup';
             renderUI();
         });
@@ -257,26 +270,61 @@
         if (appState === 'setup') {
             const apiKey = GM_getValue("torn_api_key", "");
             const enemyId = GM_getValue("torn_enemy_id", "");
+            const pMin = GM_getValue("torn_poll_minutes", 1);
+            const isCancelable = apiKey && enemyId && latestData.timestamp;
+
             html = `
                 <div style="font-family: sans-serif; font-size: 12px;">
-                    <div style="margin-bottom:8px;">Enter intel sources:</div>
-                    <input id="tm-apikey-input" type="text" placeholder="API Key" value="${apiKey}" style="width:100%; margin-bottom:5px; background:#222; color:#fff; border:1px solid #555; padding:4px; box-sizing: border-box;">
-                    <input id="tm-enemyid-input" type="text" placeholder="Enemy Faction ID" value="${enemyId}" style="width:100%; margin-bottom:5px; background:#222; color:#fff; border:1px solid #555; padding:4px; box-sizing: border-box;">
-                    <button id="tm-save-config" style="width:100%; background:#4CAF50; color:#fff; border:none; padding:5px; cursor:pointer; font-weight:bold; margin-top:5px;">Launch Radar</button>
+                    <div style="margin-bottom:12px; font-weight:bold; border-bottom:1px solid #444; padding-bottom:4px;">⚙️ Configuration</div>
+                    
+                    <label style="font-size:10px; color:#888;">API Key</label>
+                    <input id="tm-apikey-input" type="text" placeholder="Your API Key" value="${apiKey}" style="width:100%; margin-bottom:8px; background:#222; color:#fff; border:1px solid #555; padding:4px; box-sizing: border-box;">
+                    
+                    <label style="font-size:10px; color:#888;">Enemy Faction ID</label>
+                    <input id="tm-enemyid-input" type="text" placeholder="Enemy ID" value="${enemyId}" style="width:100%; margin-bottom:8px; background:#222; color:#fff; border:1px solid #555; padding:4px; box-sizing: border-box;">
+                    
+                    <label style="font-size:10px; color:#888;">Polling Interval</label>
+                    <select id="tm-poll-input" style="width:100%; margin-bottom:12px; background:#222; color:#fff; border:1px solid #555; padding:4px; box-sizing: border-box;">
+                        <option value="1" ${pMin === 1 ? 'selected' : ''}>1 Minute</option>
+                        <option value="5" ${pMin === 5 ? 'selected' : ''}>5 Minutes</option>
+                        <option value="10" ${pMin === 10 ? 'selected' : ''}>10 Minutes</option>
+                        <option value="15" ${pMin === 15 ? 'selected' : ''}>15 Minutes</option>
+                    </select>
+
+                    <div style="display:flex; gap:6px;">
+                        <button id="tm-save-config" style="flex:1; background:#4CAF50; color:#fff; border:none; padding:6px; cursor:pointer; font-weight:bold; border-radius:2px;">Save & Launch</button>
+                        ${isCancelable ? `<button id="tm-cancel-config" style="flex:1; background:#555; color:#fff; border:none; padding:6px; cursor:pointer; font-weight:bold; border-radius:2px;">Cancel</button>` : ''}
+                    </div>
                 </div>
             `;
             contentDiv.innerHTML = html;
+
             document.getElementById('tm-save-config').addEventListener('click', () => {
                 const keyVal = document.getElementById('tm-apikey-input').value.trim();
                 const enemyVal = document.getElementById('tm-enemyid-input').value.trim();
+                const intervalVal = parseInt(document.getElementById('tm-poll-input').value, 10);
+                
                 if (keyVal && enemyVal) {
                     GM_setValue("torn_api_key", keyVal);
                     GM_setValue("torn_enemy_id", enemyVal);
+                    GM_setValue("torn_poll_minutes", intervalVal);
+                    
+                    pollMinutes = intervalVal;
                     appState = 'loading';
                     renderUI();
+                    
+                    // Immediately fetch data and reset the absolute timer
+                    targetPollTime = Date.now() + (pollMinutes * 60000);
                     pollData();
                 }
             });
+
+            if (isCancelable) {
+                document.getElementById('tm-cancel-config').addEventListener('click', () => {
+                    appState = 'app';
+                    renderUI();
+                });
+            }
             return;
         }
 
@@ -289,12 +337,10 @@
             contentDiv.innerHTML = `
                 <div style="color:#ff4444; font-family: sans-serif; font-size:12px;">
                     ❌ API Error:<br>${lastErrorMsg}<br>
-                    <button id="tm-reset-error" style="margin-top:10px; width:100%; background:#333; color:#fff; border:1px solid #555; padding:5px; cursor:pointer;">Reset Config</button>
+                    <button id="tm-reset-error" style="margin-top:10px; width:100%; background:#333; color:#fff; border:1px solid #555; padding:5px; cursor:pointer;">Return to Settings</button>
                 </div>
             `;
             document.getElementById('tm-reset-error').addEventListener('click', () => {
-                GM_setValue("torn_api_key", "");
-                GM_setValue("torn_enemy_id", "");
                 appState = 'setup';
                 renderUI();
             });
@@ -305,15 +351,13 @@
             const activeTabStyle = 'background:#4CAF50; color:#fff; font-weight:bold; cursor:default;';
             const inactiveTabStyle = 'background:#222; color:#888; cursor:pointer;';
 
-            // NEW TIMER HEADER INFO
             html += `
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:10px; color:#777; background:rgba(0,0,0,0.2); padding:4px 6px; border-radius:4px; border:1px solid #222;">
                     <span>Refreshed: ${latestData.timestamp}</span>
-                    <span id="tm-countdown-display" style="color:#888;">Next in: ${secondsLeft}s</span>
+                    <span id="tm-countdown-display" style="color:#888;">Next in: ${formatTime(secondsLeftDisplay)}</span>
                 </div>
             `;
 
-            // Tabs Header
             html += `
                 <div style="display:flex; margin-bottom:10px; border-radius:4px; overflow:hidden; border:1px solid #444; font-size:11px;">
                     <div id="tm-tab-map" style="flex:1; text-align:center; padding:6px; ${currentTab === 'map' ? activeTabStyle : inactiveTabStyle}">🌍 MAP</div>
@@ -366,7 +410,6 @@
 
             contentDiv.innerHTML = html;
 
-            // Tab Event Listeners
             const tabMap = document.getElementById('tm-tab-map');
             const tabAir = document.getElementById('tm-tab-air');
             if (tabMap && currentTab !== 'map') {
@@ -434,8 +477,11 @@
             latestData.theatreMap = newTheatreMap;
             latestData.airspace = newAirspace;
             latestData.timestamp = new Date().toLocaleTimeString();
-            secondsLeft = 60; // Reset countdown counter on clear api sync
             appState = 'app';
+            
+            // Set exact timestamp for the next expected pull based on configuration
+            targetPollTime = Date.now() + (pollMinutes * 60000);
+            
             renderUI();
 
         } catch (err) {
@@ -451,24 +497,36 @@
         const eid = GM_getValue("torn_enemy_id", "");
         appState = (key && eid) ? 'loading' : 'setup';
         renderUI();
-        if (key && eid) pollData();
+        
+        if (key && eid) {
+            // Instantly pull data on load, and establish target timestamp
+            targetPollTime = Date.now() + (pollMinutes * 60000);
+            pollData();
+        }
 
-        // 1. Core API Poller (60s loop)
-        setInterval(() => {
-            if (appState === 'app' || appState === 'loading') {
-                pollData();
-            }
-        }, POLL_INTERVAL_MS);
-
-        // 2. Dynamic UI Countdown Thread (1s loop)
+        // The Heartbeat Engine: Runs reliably and manages true Delta Timing
         setInterval(() => {
             if (appState === 'app') {
-                secondsLeft--;
-                if (secondsLeft < 0) secondsLeft = 60; 
+                const now = Date.now();
                 
-                const displayEl = document.getElementById('tm-countdown-display');
-                if (displayEl) {
-                    displayEl.innerText = `Next in: ${secondsLeft}s`;
+                if (now >= targetPollTime) {
+                    // We hit 0! Push the target forward instantly to block race conditions
+                    targetPollTime = now + (pollMinutes * 60000); 
+                    
+                    const displayEl = document.getElementById('tm-countdown-display');
+                    if (displayEl) {
+                        displayEl.innerText = `Syncing...`;
+                        displayEl.style.color = "#4CAF50"; // Turn green to show action
+                    }
+                    pollData(); 
+                } else {
+                    // Update UI countdown
+                    secondsLeftDisplay = Math.ceil((targetPollTime - now) / 1000);
+                    const displayEl = document.getElementById('tm-countdown-display');
+                    if (displayEl) {
+                        displayEl.innerText = `Next in: ${formatTime(secondsLeftDisplay)}`;
+                        displayEl.style.color = "#888"; // Revert to gray
+                    }
                 }
             }
         }, 1000);
