@@ -210,7 +210,7 @@
         fab.style.display = isVisible ? 'none' : 'flex';
         fab.style.alignItems = 'center';
         fab.style.gap = '6px';
-        fab.innerHTML = '⚔️ <span style="color:#4CAF50;">Radar</span>';
+        fab.innerHTML = '🐝 <span style="color:#4CAF50;">Radar</span>';
         document.body.appendChild(fab);
 
         function toggleVisibility() {
