@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Torn Conflict Manager (Phase 1.5)
 // @namespace    https://github.com/Nanthia/Torn-ATC
-// @version      1.5
+// @version      1.5.1
 // @description  Adds Airspace tracking tab for returning/outbound flights.
 // @author       Antheia
 // @match        https://www.torn.com/*
@@ -75,19 +75,19 @@
 
         if (state === "Abroad") {
             const country = extractCountry(fullText);
-            if (country) return { country };
+            if (country) return { country, isTransit: false };
         }
         if (state === "Hospital") {
             const match = fullText.match(/in an? ([a-z ]+?) hospital/);
             if (match && HOSPITAL_ADJECTIVE_TO_COUNTRY[match[1].trim()]) {
-                return { country: HOSPITAL_ADJECTIVE_TO_COUNTRY[match[1].trim()] };
+                return { country: HOSPITAL_ADJECTIVE_TO_COUNTRY[match[1].trim()], isTransit: false };
             }
         }
         if (state === "Traveling") {
             const toMatch = fullText.match(/to\s+([a-z\s]+)/);
             if (toMatch) {
                 const country = extractCountry(toMatch[1]);
-                if (country) return { country };
+                if (country) return { country, isTransit: true };
             }
         }
         return null;
@@ -101,7 +101,6 @@
         const details = (playerObj.status && playerObj.status.details) || "";
         const fullText = (description + " " + details).toLowerCase();
 
-        // If they are heading to Torn or returning
         const isReturning = fullText.match(/\b(to torn|returning)\b/);
         return isReturning ? "RETURNING" : "OUTBOUND";
     }
@@ -119,7 +118,11 @@
     // --- UI Container Initialization ---
     function initUI() {
         if (document.getElementById('tm-conflict-container')) return;
+
         const savedPos = JSON.parse(GM_getValue("torn_ui_pos", "{}"));
+        let isVisible = GM_getValue("tm_visible", true);
+
+        // Main Widget Container
         const container = document.createElement('div');
         container.id = 'tm-conflict-container';
         container.style.position = 'fixed';
@@ -130,11 +133,11 @@
         container.style.fontFamily = 'monospace';
         container.style.boxShadow = '0 4px 15px rgba(0,0,0,0.8)';
         container.style.backdropFilter = 'blur(4px)';
-        container.style.display = 'flex';
+        container.style.display = isVisible ? 'flex' : 'none';
         container.style.flexDirection = 'column';
         container.style.resize = 'both';
         container.style.overflow = 'hidden';
-        container.style.width = savedPos.width || '250px';
+        container.style.width = savedPos.width || '260px';
         container.style.height = savedPos.height || 'auto';
         if (savedPos.top && savedPos.left) {
             container.style.top = savedPos.top;
@@ -156,7 +159,12 @@
         header.style.userSelect = 'none';
         header.style.display = 'flex';
         header.style.justifyContent = 'space-between';
-        header.innerHTML = `<span>⚔️ Command Center</span><span id="tm-reset-config" style="cursor:pointer; font-size:11px; color:#888;" title="Reset Settings">[⚙️]</span>`;
+        header.innerHTML = `
+            <span>⚔️ Command Center</span>
+            <div>
+                <span id="tm-hide-widget" style="cursor:pointer; font-size:11px; color:#aaa; margin-right:8px;" title="Hide Widget">[—]</span>
+                <span id="tm-reset-config" style="cursor:pointer; font-size:11px; color:#888;" title="Reset Settings">[⚙️]</span>
+            </div>`;
 
         const content = document.createElement('div');
         content.id = 'tm-conflict-content';
@@ -169,10 +177,43 @@
         container.appendChild(content);
         document.body.appendChild(container);
 
+        // Floating Toggle Button (FAB)
+        const fab = document.createElement('div');
+        fab.id = 'tm-conflict-fab';
+        fab.style.position = 'fixed';
+        fab.style.bottom = '20px';
+        fab.style.left = '20px';
+        fab.style.zIndex = '999998';
+        fab.style.background = 'rgba(15,15,15,0.95)';
+        fab.style.border = '1px solid #444';
+        fab.style.color = '#fff';
+        fab.style.padding = '8px 14px';
+        fab.style.borderRadius = '20px';
+        fab.style.cursor = 'pointer';
+        fab.style.fontWeight = 'bold';
+        fab.style.fontFamily = 'monospace';
+        fab.style.boxShadow = '0 4px 15px rgba(0,0,0,0.8)';
+        fab.style.display = isVisible ? 'none' : 'flex';
+        fab.style.alignItems = 'center';
+        fab.style.gap = '6px';
+        fab.innerHTML = '⚔️ <span style="color:#4CAF50;">Radar</span>';
+        document.body.appendChild(fab);
+
+        // Visibility Toggle Function
+        function toggleVisibility() {
+            isVisible = !isVisible;
+            GM_setValue("tm_visible", isVisible);
+            container.style.display = isVisible ? 'flex' : 'none';
+            fab.style.display = isVisible ? 'none' : 'flex';
+        }
+
+        document.getElementById('tm-hide-widget').addEventListener('click', toggleVisibility);
+        fab.addEventListener('click', toggleVisibility);
+
         // Drag Logic
         let isDragging = false, offsetX, offsetY;
         header.addEventListener('mousedown', (e) => {
-            if (e.target.id === 'tm-reset-config') return;
+            if (e.target.id === 'tm-reset-config' || e.target.id === 'tm-hide-widget') return;
             isDragging = true;
             const rect = container.getBoundingClientRect();
             offsetX = e.clientX - rect.left;
@@ -280,18 +321,26 @@
                 const countries = Object.keys(latestData.theatreMap).sort();
                 if (countries.length === 0) {
                     html += `<div style="color:#888; font-size:11px; text-align:center; padding: 10px 0;">No overseas deployments.</div>`;
+                } else {
+                    html += `<div style="font-size:9px; color:#888; margin-bottom:6px; text-align:center;">A:Ally | E:Enemy | AT:Ally Transit | ET:Enemy Transit</div>`;
                 }
+
                 countries.forEach(c => {
                     const data = latestData.theatreMap[c];
                     let statusColor = "#aaa";
-                    if (data.allies > 0 && data.enemies > 0) statusColor = "#ff4444";
-                    else if (data.enemies > 0) statusColor = "#ffaa00";
-                    else if (data.allies > 0) statusColor = "#44ff44";
+                    if (data.A > 0 && data.E > 0) statusColor = "#ff4444";
+                    else if (data.E > 0) statusColor = "#ffaa00";
+                    else if (data.A > 0) statusColor = "#44ff44";
 
                     html += `
-                    <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:12px; border-bottom: 1px solid #222; padding-bottom: 4px;">
-                        <span>${data.flag} ${c}</span>
-                        <span style="color:${statusColor}; font-weight:bold;">A:${data.allies} E:${data.enemies}</span>
+                    <div style="margin-bottom:8px; border-bottom: 1px solid #222; padding-bottom: 6px;">
+                        <div style="font-size:12px; font-weight:bold; margin-bottom:4px;">${data.flag} ${c}</div>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; font-size: 11px; background: rgba(0,0,0,0.3); padding: 4px; border-radius: 4px;">
+                            <span style="color:#44ff44;">A: ${data.A}</span>
+                            <span style="color:#44ff44;">AT: ${data.AT}</span>
+                            <span style="color:${statusColor};">E: ${data.E}</span>
+                            <span style="color:${statusColor};">ET: ${data.ET}</span>
+                        </div>
                     </div>`;
                 });
             }
@@ -361,15 +410,21 @@
                     else newAirspace[type].outbound++;
                 }
 
-                // 2. Check if landed/hospitalized overseas
+                // 2. Check if landed/hospitalized/transit overseas
                 const loc = getOverseasLocation(member);
                 if (loc) {
                     const country = loc.country;
                     if (!newTheatreMap[country]) {
-                        newTheatreMap[country] = { allies: 0, enemies: 0, flag: countryFlags[country.toLowerCase()] || "📍" };
+                        newTheatreMap[country] = { A: 0, E: 0, AT: 0, ET: 0, flag: countryFlags[country.toLowerCase()] || "📍" };
                     }
-                    if (type === "ALLY") newTheatreMap[country].allies++;
-                    if (type === "ENEMY") newTheatreMap[country].enemies++;
+
+                    if (loc.isTransit) {
+                        if (type === "ALLY") newTheatreMap[country].AT++;
+                        if (type === "ENEMY") newTheatreMap[country].ET++;
+                    } else {
+                        if (type === "ALLY") newTheatreMap[country].A++;
+                        if (type === "ENEMY") newTheatreMap[country].E++;
+                    }
                 }
             };
 
