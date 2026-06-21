@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Torn Conflict Manager
+// @name         Torn Conflict Manager (Phase 1.5)
 // @namespace    https://github.com/Nanthia/Torn-ATC
 // @version      1.5.2
 // @description  Adds Airspace tracking tab for returning/outbound flights.
