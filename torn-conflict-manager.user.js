@@ -175,7 +175,7 @@
         header.style.display = 'flex';
         header.style.justifyContent = 'space-between';
         header.innerHTML = `
-            <span>⚔️ Command Center</span>
+            <span>🐝 Command Center</span>
             <div>
                 <span id="tm-hide-widget" style="cursor:pointer; font-size:11px; color:#aaa; margin-right:8px;" title="Hide Widget">[—]</span>
                 <span id="tm-open-settings" style="cursor:pointer; font-size:11px; color:#888;" title="Settings">[⚙️]</span>
